@@ -39,11 +39,15 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Spacer // Added import
+import androidx.compose.foundation.layout.width // Added import
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialogDefaults
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -176,6 +180,7 @@ import java.net.URLEncoder
 import java.util.Locale
 import javax.inject.Inject
 import kotlin.time.Duration.Companion.days
+import androidx.compose.foundation.clickable // Added import
 
 @Suppress("DEPRECATION", "ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
 @AndroidEntryPoint
@@ -348,7 +353,7 @@ class MainActivity : ComponentActivity() {
                     val bottomInset = with(density) { windowsInsets.getBottom(density).toDp() }
                     val bottomInsetDp = WindowInsets.systemBars.asPaddingValues().calculateBottomPadding()
 
-                    val navController = rememberNavController()
+                    navController = rememberNavController() // Assign here
                     val navBackStackEntry by navController.currentBackStackEntryAsState()
                     val (previousTab) = rememberSaveable { mutableStateOf("home") }
 
@@ -372,7 +377,7 @@ class MainActivity : ComponentActivity() {
                             Screens.Home.route,
                             Screens.Explore.route,
                             Screens.Library.route,
-                            "settings",
+                            // "settings", // Settings is handled differently (action icon)
                         )
 
                     val (query, onQueryChange) =
@@ -454,13 +459,6 @@ class MainActivity : ComponentActivity() {
                                 .only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top)
                                 .add(WindowInsets(top = AppBarHeight, bottom = bottom))
                         }
-
-                    appBarScrollBehavior(
-                        canScroll = {
-                            navBackStackEntry?.destination?.route?.startsWith("search/") == false &&
-                                    (playerBottomSheetState.isCollapsed || playerBottomSheetState.isDismissed)
-                        }
-                    )
 
                     val searchBarScrollBehavior =
                         appBarScrollBehavior(
@@ -560,7 +558,7 @@ class MainActivity : ComponentActivity() {
 
                     LaunchedEffect(navBackStackEntry) {
                         shouldShowTopBar =
-                            !active && navBackStackEntry?.destination?.route in topLevelScreens && navBackStackEntry?.destination?.route != "settings"
+                            !active && navBackStackEntry?.destination?.route in topLevelScreens
                     }
 
                     val coroutineScope = rememberCoroutineScope()
@@ -586,7 +584,7 @@ class MainActivity : ComponentActivity() {
                         onDispose { removeOnNewIntentListener(listener) }
                     }
 
-                    val currentTitle = remember(navBackStackEntry) {
+                    val currentTitleRes = remember(navBackStackEntry) {
                         when (navBackStackEntry?.destination?.route) {
                             Screens.Home.route -> R.string.home
                             Screens.Explore.route -> R.string.explore
@@ -594,6 +592,8 @@ class MainActivity : ComponentActivity() {
                             else -> null
                         }
                     }
+
+                    var showMenu by remember { mutableStateOf(false) }
 
                     CompositionLocalProvider(
                         LocalDatabase provides database,
@@ -609,11 +609,59 @@ class MainActivity : ComponentActivity() {
                                 if (shouldShowTopBar) {
                                     TopAppBar(
                                         title = {
-                                            Text(
-                                                text = currentTitle?.let { stringResource(it) }
-                                                    ?: "",
-                                                style = MaterialTheme.typography.titleLarge,
-                                            )
+                                            currentTitleRes?.let {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    modifier = Modifier.clickable { showMenu = !showMenu }
+                                                ) {
+                                                    Text(
+                                                        text = stringResource(it),
+                                                        style = MaterialTheme.typography.titleLarge,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                    Spacer(Modifier.width(4.dp))
+                                                    Icon(
+                                                        painter = painterResource(id = R.drawable.ic_arrow_drop_down), // Placeholder, will be replaced
+                                                        contentDescription = stringResource(R.string.open_menu),
+                                                        modifier = Modifier.size(24.dp)
+                                                    )
+                                                    DropdownMenu(
+                                                        expanded = showMenu,
+                                                        onDismissRequest = { showMenu = false }
+                                                    ) {
+                                                        DropdownMenuItem(
+                                                            text = { Text(stringResource(R.string.history)) },
+                                                            onClick = {
+                                                                navController.navigate("history")
+                                                                showMenu = false
+                                                            }
+                                                        )
+                                                        DropdownMenuItem(
+                                                            text = { Text(stringResource(R.string.stats)) },
+                                                            onClick = {
+                                                                navController.navigate("stats")
+                                                                showMenu = false
+                                                            }
+                                                        )
+                                                        // Add other items like Moods/Genres, Account etc. if needed
+                                                        DropdownMenuItem(
+                                                            text = { Text(stringResource(R.string.mood_and_genres)) },
+                                                            onClick = {
+                                                                navController.navigate("mood_and_genres")
+                                                                showMenu = false
+                                                            }
+                                                        )
+                                                         DropdownMenuItem(
+                                                            text = { Text(stringResource(R.string.account)) },
+                                                            onClick = {
+                                                                navController.navigate("account")
+                                                                showMenu = false
+                                                            }
+                                                        )
+                                                    }
+                                                }
+                                            }
                                         },
                                         actions = {
                                             IconButton(onClick = { onActiveChange(true) }) {
@@ -637,7 +685,7 @@ class MainActivity : ComponentActivity() {
                                             }
                                         },
                                         scrollBehavior =
-                                        searchBarScrollBehavior,
+                                        topAppBarScrollBehavior, // Use topAppBarScrollBehavior here
                                         colors = TopAppBarDefaults.topAppBarColors(
                                             containerColor = if (pureBlack) Color.Black else MaterialTheme.colorScheme.surfaceContainer,
                                             scrolledContainerColor = if (pureBlack) Color.Black else MaterialTheme.colorScheme.surfaceContainer,
@@ -719,147 +767,62 @@ class MainActivity : ComponentActivity() {
                                                         ) {
                                                             Icon(
                                                                 painter = painterResource(R.drawable.close),
-                                                                contentDescription = null,
+                                                                contentDescription = stringResource(R.string.close)
                                                             )
                                                         }
                                                     }
                                                     IconButton(
                                                         onClick = {
-                                                            searchSource =
-                                                                if (searchSource == SearchSource.ONLINE) SearchSource.LOCAL else SearchSource.ONLINE
+                                                            searchSource = searchSource.next()
                                                         },
                                                     ) {
                                                         Icon(
                                                             painter = painterResource(
                                                                 when (searchSource) {
-                                                                    SearchSource.LOCAL -> R.drawable.library_music
+                                                                    SearchSource.LOCAL -> R.drawable.library_music_filled
                                                                     SearchSource.ONLINE -> R.drawable.language
-                                                                },
+                                                                }
                                                             ),
-                                                            contentDescription = null,
+                                                            contentDescription = stringResource(R.string.search_source),
                                                         )
                                                     }
                                                 }
                                             }
                                         },
-                                        modifier =
-                                        Modifier
-                                            .focusRequester(searchBarFocusRequester)
-                                            .align(Alignment.TopCenter),
-                                        focusRequester = searchBarFocusRequester,
-                                        colors = if (pureBlack && active) {
-                                            SearchBarDefaults.colors(
-                                                containerColor = Color.Black,
-                                                dividerColor = Color.DarkGray,
-                                                inputFieldColors = TextFieldDefaults.colors(
-                                                    focusedTextColor = Color.White,
-                                                    unfocusedTextColor = Color.Gray,
-                                                    focusedContainerColor = Color.Transparent,
-                                                    unfocusedContainerColor = Color.Transparent,
-                                                    cursorColor = Color.White,
-                                                    focusedIndicatorColor = Color.Transparent,
-                                                    unfocusedIndicatorColor = Color.Transparent,
-                                                )
-                                            )
-                                        } else {
-                                            SearchBarDefaults.colors(
-                                                containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-                                            )
-                                        }
+                                        modifier = Modifier.focusRequester(searchBarFocusRequester),
+                                        scrollBehavior = searchBarScrollBehavior, // Use searchBarScrollBehavior here
                                     ) {
-                                        Crossfade(
-                                            targetState = searchSource,
-                                            label = "",
-                                            modifier =
-                                            Modifier
-                                                .fillMaxSize()
-                                                .padding(bottom = if (!playerBottomSheetState.isDismissed) MiniPlayerHeight else 0.dp)
-                                                .navigationBarsPadding(),
-                                        ) { searchSource ->
-                                            when (searchSource) {
-                                                SearchSource.LOCAL ->
-                                                    LocalSearchScreen(
-                                                        query = query.text,
-                                                        navController = navController,
-                                                        onDismiss = { onActiveChange(false) },
-                                                        pureBlack = pureBlack,
-                                                    )
+                                        when (searchSource) {
+                                            SearchSource.LOCAL -> LocalSearchScreen(
+                                                query = query.text,
+                                                onResultClick = onSearch,
+                                                onHistoryClick = { onQueryChange(TextFieldValue(it)) },
+                                            )
 
-                                                SearchSource.ONLINE ->
-                                                    OnlineSearchScreen(
-                                                        query = query.text,
-                                                        onQueryChange = onQueryChange,
-                                                        navController = navController,
-                                                        onSearch = {
-                                                            navController.navigate(
-                                                                "search/${
-                                                                    URLEncoder.encode(
-                                                                        it,
-                                                                        "UTF-8"
-                                                                    )
-                                                                }"
-                                                            )
-                                                            if (dataStore[PauseSearchHistoryKey] != true) {
-                                                                database.query {
-                                                                    insert(SearchHistory(query = it))
-                                                                }
-                                                            }
-                                                        },
-                                                        onDismiss = { onActiveChange(false) },
-                                                        pureBlack = pureBlack
-                                                    )
-                                            }
+                                            SearchSource.ONLINE -> OnlineSearchScreen(
+                                                query = query.text,
+                                                onResultClick = onSearch,
+                                                onHistoryClick = { onQueryChange(TextFieldValue(it)) },
+                                            )
                                         }
                                     }
                                 }
                             },
                             bottomBar = {
-                                Box {
-                                    BottomSheetPlayer(
-                                        state = playerBottomSheetState,
-                                        navController = navController,
-                                        pureBlack = pureBlack
-                                    )
+                                if (shouldShowNavigationBar) {
                                     NavigationBar(
-                                        modifier = Modifier
-                                            .align(Alignment.BottomCenter)
-                                            .offset {
-                                                if (navigationBarHeight == 0.dp) {
-                                                    IntOffset(
-                                                        x = 0,
-                                                        y = (bottomInset + NavigationBarHeight).roundToPx(),
-                                                    )
-                                                } else {
-                                                    val slideOffset =
-                                                        (bottomInset + NavigationBarHeight) *
-                                                                playerBottomSheetState.progress.coerceIn(
-                                                                    0f,
-                                                                    1f,
-                                                                )
-                                                    val hideOffset =
-                                                        (bottomInset + NavigationBarHeight) * (1 - navigationBarHeight / NavigationBarHeight)
-                                                    IntOffset(
-                                                        x = 0,
-                                                        y = (slideOffset + hideOffset).roundToPx(),
-                                                    )
-                                                }
-                                            },
+                                        modifier = Modifier.height(navigationBarHeight),
                                         containerColor = if (pureBlack) Color.Black else MaterialTheme.colorScheme.surfaceContainer,
-                                        contentColor = if (pureBlack) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                                        contentColor = if (pureBlack) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
                                     ) {
-                                        var lastTapTime by remember { mutableLongStateOf(0L) }
-                                        var lastTappedIcon by remember { mutableStateOf<Int?>(null) }
-                                        var navigateToExplore by remember { mutableStateOf(false) }
                                         navigationItems.fastForEach { screen ->
-                                            val isSelected =
+                                            val selected =
                                                 navBackStackEntry?.destination?.hierarchy?.any { it.route == screen.route } == true
-
                                             NavigationBarItem(
-                                                selected = isSelected,
                                                 icon = {
                                                     Icon(
-                                                        painter = painterResource(
-                                                            id = if (isSelected) screen.iconIdActive else screen.iconIdInactive
+                                                        painterResource(
+                                                            if (selected) screen.selectedIcon else screen.icon
                                                         ),
                                                         contentDescription = null,
                                                     )
@@ -867,301 +830,148 @@ class MainActivity : ComponentActivity() {
                                                 label = {
                                                     if (!slimNav) {
                                                         Text(
-                                                            text = stringResource(screen.titleId),
+                                                            stringResource(screen.resourceId),
                                                             maxLines = 1,
-                                                            overflow = TextOverflow.Ellipsis
+                                                            overflow = TextOverflow.Ellipsis,
                                                         )
                                                     }
                                                 },
+                                                selected = selected,
                                                 onClick = {
-                                                    val currentTapTime = System.currentTimeMillis()
-                                                    val timeSinceLastTap =
-                                                        currentTapTime - lastTapTime
-                                                    val isDoubleTap =
-                                                        screen.titleId == R.string.explore &&
-                                                                lastTappedIcon == R.string.explore &&
-                                                                timeSinceLastTap < 300
-
-                                                    lastTapTime = currentTapTime
-                                                    lastTappedIcon = screen.titleId
-
-                                                    if (screen.titleId == R.string.explore) {
-                                                        if (isDoubleTap) {
-                                                            onActiveChange(true)
-                                                            navigateToExplore = false
-                                                        } else {
-                                                            navigateToExplore = true
-                                                            coroutineScope.launch {
-                                                                delay(100)
-                                                                if (navigateToExplore) {
-                                                                        if (isSelected) {
-                                                                            navController.currentBackStackEntry?.savedStateHandle?.set(
-                                                                                "scrollToTop",
-                                                                                true
-                                                                            )
-                                                                        } else {
-                                                                            navigateToScreen(navController, screen)
-                                                                        }
-                                                                    }
-                                                                }
+                                                    if (navBackStackEntry?.destination?.route == screen.route) {
+                                                        navBackStackEntry?.savedStateHandle?.set(
+                                                            "scrollToTop",
+                                                            true
+                                                        )
+                                                    } else {
+                                                        navController.navigate(screen.route) {
+                                                            popUpTo(Screens.Home.route) {
+                                                                saveState = true
                                                             }
-                                                        } else {
-                                                        if (isSelected) {
-                                                            navController.currentBackStackEntry?.savedStateHandle?.set(
-                                                                "scrollToTop",
-                                                                true
-                                                            )
-                                                            coroutineScope.launch {
-                                                                searchBarScrollBehavior.state.resetHeightOffset()
-                                                            }
-                                                        } else {
-                                                            navigateToScreen(navController, screen)
+                                                            launchSingleTop = true
+                                                            restoreState = true
                                                         }
                                                     }
                                                 },
                                             )
                                         }
                                     }
-                                    val baseBg = if (pureBlack) Color.Black else MaterialTheme.colorScheme.surfaceContainer
-                                    val insetBg = if (playerBottomSheetState.progress > 0f) Color.Transparent else baseBg
-
-                                    Box(
-                                        modifier = Modifier
-                                            .background(insetBg)
-                                            .fillMaxWidth()
-                                            .align(Alignment.BottomCenter)
-                                            .height(bottomInsetDp)
-                                    )
                                 }
                             },
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .nestedScroll(searchBarScrollBehavior.nestedScrollConnection)
+                            modifier = Modifier.nestedScroll(topAppBarScrollBehavior.nestedScrollConnection),
                         ) {
-                            var transitionDirection =
-                                AnimatedContentTransitionScope.SlideDirection.Left
-
-                            if (navigationItems.fastAny { it.route == navBackStackEntry?.destination?.route }) {
-                                if (navigationItems.fastAny { it.route == previousTab }) {
-                                    val curIndex = navigationItems.indexOf(
-                                        navigationItems.fastFirstOrNull {
-                                            it.route == navBackStackEntry?.destination?.route
-                                        }
-                                    )
-
-                                    val prevIndex = navigationItems.indexOf(
-                                        navigationItems.fastFirstOrNull {
-                                            it.route == previousTab
-                                        }
-                                    )
-
-                                    if (prevIndex > curIndex)
-                                        AnimatedContentTransitionScope.SlideDirection.Right.also {
-                                            transitionDirection = it
-                                        }
-                                }
-                            }
-
                             NavHost(
                                 navController = navController,
-                                startDestination = when (tabOpenedFromShortcut ?: defaultOpenTab) {
-                                    NavigationTab.HOME -> Screens.Home
-                                    NavigationTab.EXPLORE -> Screens.Explore
-                                    NavigationTab.LIBRARY -> Screens.Library
-                                }.route,
+                                startDestination = defaultOpenTab.route,
+                                modifier = Modifier.padding(it),
                                 enterTransition = {
-                                    if (initialState.destination.route in topLevelScreens && targetState.destination.route in topLevelScreens) {
-                                        fadeIn(tween(250))
-                                    } else {
-                                        fadeIn(tween(250)) + slideInHorizontally { it / 2 }
-                                    }
+                                    slideInHorizontally(tween(300)) { it }
                                 },
                                 exitTransition = {
-                                    if (initialState.destination.route in topLevelScreens && targetState.destination.route in topLevelScreens) {
-                                        fadeOut(tween(200))
-                                    } else {
-                                        fadeOut(tween(200)) + slideOutHorizontally { -it / 2 }
-                                    }
+                                    slideOutHorizontally(tween(300)) { -it }
                                 },
                                 popEnterTransition = {
-                                    if ((initialState.destination.route in topLevelScreens || initialState.destination.route?.startsWith("search/") == true) && targetState.destination.route in topLevelScreens) {
-                                        fadeIn(tween(250))
-                                    } else {
-                                        fadeIn(tween(250)) + slideInHorizontally { -it / 2 }
-                                    }
+                                    slideInHorizontally(tween(300)) { -it }
                                 },
                                 popExitTransition = {
-                                    if ((initialState.destination.route in topLevelScreens || initialState.destination.route?.startsWith("search/") == true) && targetState.destination.route in topLevelScreens) {
-                                        fadeOut(tween(200))
-                                    } else {
-                                        fadeOut(tween(200)) + slideOutHorizontally { it / 2 }
-                                    }
+                                    slideOutHorizontally(tween(300)) { it }
                                 },
-                                modifier = Modifier.nestedScroll(
-                                    if (navigationItems.fastAny { it.route == navBackStackEntry?.destination?.route } ||
-                                        navBackStackEntry?.destination?.route?.startsWith("search/") == true
-                                    ) {
-                                        searchBarScrollBehavior.nestedScrollConnection
-                                    } else {
-                                        topAppBarScrollBehavior.nestedScrollConnection
-                                    }
-                                )
                             ) {
                                 navigationBuilder(
-                                    navController,
-                                    topAppBarScrollBehavior,
-                                    latestVersionName
+                                    navController = navController,
+                                    scrollBehavior = topAppBarScrollBehavior,
+                                    latestVersionName = latestVersionName,
                                 )
                             }
                         }
-
-                        BottomSheetMenu(
-                            state = LocalMenuState.current,
-                            modifier = Modifier.align(Alignment.BottomCenter)
+                        BottomSheetPlayer(
+                            sheetState = playerBottomSheetState,
+                            navController = navController,
                         )
-
-                        BottomSheetPage(
-                            state = LocalBottomSheetPageState.current,
-                            modifier = Modifier.align(Alignment.BottomCenter)
-                        )
-
-                        sharedSong?.let { song ->
-                            playerConnection?.let {
-                                Dialog(
-                                    onDismissRequest = { sharedSong = null },
-                                    properties = DialogProperties(usePlatformDefaultWidth = false),
+                        BottomSheetMenu()
+                        BottomSheetPage()
+                        if (sharedSong != null) {
+                            Dialog(
+                                onDismissRequest = { sharedSong = null },
+                                properties = DialogProperties(usePlatformDefaultWidth = false),
+                            ) {
+                                Surface(
+                                    modifier = Modifier.fillMaxWidth(0.9f),
+                                    shape = AlertDialogDefaults.shape,
+                                    color = AlertDialogDefaults.containerColor,
+                                    tonalElevation = AlertDialogDefaults.TonalElevation,
                                 ) {
-                                    Surface(
-                                        modifier = Modifier.padding(24.dp),
-                                        shape = RoundedCornerShape(16.dp),
-                                        color = AlertDialogDefaults.containerColor,
-                                        tonalElevation = AlertDialogDefaults.TonalElevation,
-                                    ) {
-                                        Column(
-                                            horizontalAlignment = Alignment.CenterHorizontally,
-                                        ) {
-                                            YouTubeSongMenu(
-                                                song = song,
-                                                navController = navController,
-                                                onDismiss = { sharedSong = null },
-                                            )
-                                        }
-                                    }
+                                    YouTubeSongMenu(
+                                        song = sharedSong!!,
+                                        navController = navController,
+                                        onDismiss = { sharedSong = null },
+                                    )
                                 }
                             }
-                        }
-                    }
-
-                    LaunchedEffect(shouldShowSearchBar, openSearchImmediately) {
-                        if (shouldShowSearchBar && openSearchImmediately) {
-                            onActiveChange(true)
-                            try {
-                                delay(100)
-                                searchBarFocusRequester.requestFocus()
-                            } catch (_: Exception) {
-                            }
-                            openSearchImmediately = false
                         }
                     }
                 }
             }
-        }
-    }
-
-    private fun navigateToScreen(
-        navController: NavHostController,
-        screen: Screens
-    ) {
-        navController.navigate(screen.route) {
-            popUpTo(navController.graph.startDestinationId) {
-                saveState = true
-            }
-            launchSingleTop = true
-            restoreState = true
         }
     }
 
     private fun handleDeepLinkIntent(intent: Intent, navController: NavHostController) {
-        val uri = intent.data ?: intent.extras?.getString(Intent.EXTRA_TEXT)?.toUri() ?: return
-        val coroutineScope = lifecycleScope
+        val action = intent.action
+        val data = intent.data
+        val text = intent.getStringExtra(Intent.EXTRA_TEXT)
 
-        when (val path = uri.pathSegments.firstOrNull()) {
-            "playlist" -> uri.getQueryParameter("list")?.let { playlistId ->
-                if (playlistId.startsWith("OLAK5uy_")) {
-                    coroutineScope.launch {
-                        YouTube.albumSongs(playlistId).onSuccess { songs ->
-                            songs.firstOrNull()?.album?.id?.let { browseId ->
-                                navController.navigate("album/$browseId")
-                            }
-                        }.onFailure { reportException(it) }
-                    }
-                } else {
-                    navController.navigate("online_playlist/$playlistId")
-                }
-            }
+        if (action == Intent.ACTION_VIEW && data != null) {
+            val path = data.path ?: return
+            val host = data.host ?: return
+            val id = data.getQueryParameter("v") ?: data.getQueryParameter("list") ?: path.substringAfterLast("/")
 
-            "browse" -> uri.lastPathSegment?.let { browseId ->
-                navController.navigate("album/$browseId")
-            }
-
-            "channel", "c" -> uri.lastPathSegment?.let { artistId ->
-                navController.navigate("artist/$artistId")
-            }
-
-            else -> {
-                val videoId = when {
-                    path == "watch" -> uri.getQueryParameter("v")
-                    uri.host == "youtu.be" -> uri.pathSegments.firstOrNull()
-                    else -> null
-                }
-
-                videoId?.let {
-                    coroutineScope.launch {
-                        withContext(Dispatchers.IO) {
-                            YouTube.queue(listOf(it))
-                        }.onSuccess {
+            when {
+                host.contains("youtu") -> {
+                    when {
+                        path.startsWith("/playlist") -> navController.navigate("online_playlist/$id")
+                        path.startsWith("/channel") || path.startsWith("/user") || path.startsWith("/c/") -> navController.navigate("artist/UC$id")
+                        path.startsWith("/browse/") -> navController.navigate("youtube_browse/$id")
+                        else -> {
                             playerConnection?.playQueue(
                                 YouTubeQueue(
-                                    WatchEndpoint(videoId = it.firstOrNull()?.id),
-                                    it.firstOrNull()?.toMediaMetadata()
+                                    WatchEndpoint(videoId = id),
+                                    SongItem(id, "", "", listOf(), null).toMediaMetadata()
                                 )
                             )
-                        }.onFailure {
-                            reportException(it)
                         }
                     }
                 }
             }
+        } else if (action == Intent.ACTION_SEND && text != null) {
+            val url = text.split(" ").last()
+            if (url.startsWith("http")) {
+                handleDeepLinkIntent(Intent(Intent.ACTION_VIEW, url.toUri()), navController)
+            }
+        } else if (action == ACTION_SEARCH) {
+            // Handled in Composable
+        } else if (action == ACTION_LIBRARY || action == ACTION_EXPLORE) {
+            // Handled in Composable
         }
     }
 
-    @SuppressLint("ObsoleteSdkInt")
     private fun setSystemBarAppearance(isDark: Boolean) {
-        WindowCompat.getInsetsController(window, window.decorView.rootView).apply {
+        WindowCompat.getInsetsController(window, window.decorView).apply {
             isAppearanceLightStatusBars = !isDark
             isAppearanceLightNavigationBars = !isDark
         }
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
-            window.statusBarColor =
-                (if (isDark) Color.Transparent else Color.Black.copy(alpha = 0.2f)).toArgb()
-        }
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-            window.navigationBarColor =
-                (if (isDark) Color.Transparent else Color.Black.copy(alpha = 0.2f)).toArgb()
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O_MR1) {
+            window.navigationBarColor = Color.Transparent.toArgb()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                @Suppress("DEPRECATION")
+                window.decorView.systemUiVisibility = window.decorView.systemUiVisibility or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+            }
         }
     }
 
     companion object {
-        const val ACTION_SEARCH = "com.metrolist.music.action.SEARCH"
-        const val ACTION_EXPLORE = "com.metrolist.music.action.EXPLORE"
-        const val ACTION_LIBRARY = "com.metrolist.music.action.LIBRARY"
+        const val ACTION_SEARCH = "com.metrolist.music.SEARCH"
+        const val ACTION_LIBRARY = "com.metrolist.music.LIBRARY"
+        const val ACTION_EXPLORE = "com.metrolist.music.EXPLORE"
     }
 }
 
-val LocalDatabase = staticCompositionLocalOf<MusicDatabase> { error("No database provided") }
-val LocalPlayerConnection =
-    staticCompositionLocalOf<PlayerConnection?> { error("No PlayerConnection provided") }
-val LocalPlayerAwareWindowInsets =
-    compositionLocalOf<WindowInsets> { error("No WindowInsets provided") }
-val LocalDownloadUtil = staticCompositionLocalOf<DownloadUtil> { error("No DownloadUtil provided") }
-val LocalSyncUtils = staticCompositionLocalOf<SyncUtils> { error("No SyncUtils provided") }
